@@ -2,7 +2,7 @@
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 import openai
-openai_api_key= "sk-CP1t8t2LVZGI79lD1dfH6bJiqTkGAgV9ld0TOQQRC3VBIasv"#"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"
+openai_api_key= "your openai api-key"
 openai.api_key = openai_api_key
 openai.api_base="https://api.closeai-proxy.xyz/v1"
 chat = ChatOpenAI(temperature=0.0,openai_api_key=openai_api_key)
