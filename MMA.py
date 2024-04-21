@@ -24,9 +24,10 @@ def img2text(dataset):
             ddim_steps=10,
             scale=7.5, )
         text = text[0]
-        print(text)
         with open(dst_txt_path,"w",encoding="utf-8") as f:
             f.write(json.dumps(text,indent=4,ensure_ascii=False))
+    return text
+
 
 def audio2text(dataset):
     for audio in os.listdir(dataset):
@@ -49,9 +50,9 @@ def audio2text(dataset):
             ddim_steps=10,
             scale=7.5)
         text = text[0]
-        print(text)
         with open(dst_txt_path, "w", encoding="utf-8") as f:
             f.write(json.dumps(text, indent=4, ensure_ascii=False))
+    return text
 
 def video2text(dataset):
     for video in os.listdir(dataset):
@@ -94,53 +95,55 @@ def video2text(dataset):
         with open(dst_txt_path, "w", encoding="utf-8") as f:
             f.write(json.dumps(video_text, indent=4, ensure_ascii=False))
         # return video_text
+    return text
 
-def text2img(prompt):
+def text2img(prompts):
     # prompt = "A beautiful oil painting of a birch tree standing in a spring meadow with pink flowers, a distant mountain towers over the field in the distance. Artwork by Alena Aenami"
-    images = inference_tester.inference(xtype = ['image'],
-                    condition = [prompt],
-                    condition_types = ['text'],
-                    n_samples = 1,
-                    image_size = 256,
-                    ddim_steps = 50)
-    plt.imshow(images[0][0])
-    plt.axis('off')
-    plt.savefig("res.jpg")
-    # plt.show()
+    for i,prompt in enumerate(prompts):
+        images = inference_tester.inference(xtype = ['image'],
+                        condition = [prompt],
+                        condition_types = ['text'],
+                        n_samples = 1,
+                        image_size = 256,
+                        ddim_steps = 50)
+        plt.imshow(images[0][0])
+        plt.axis('off')
+        plt.savefig(f"text2img_res{i}.jpg")
+        # plt.show()
 
-def text2video(prompt):
+def text2video(prompts):
     # Give A Prompt
     # prompt = "The boy has a birthday cake decorated with a large candle while celebrating."
+    for i,prompt in enumerate(prompts):
+        outputs = inference_tester.inference(
+            ['video'],
+            condition=[prompt],
+            condition_types=['text'],
+            n_samples=1,
+            image_size=256,
+            ddim_steps=50,
+            num_frames=8,
+            scale=7.5)
 
-    n_samples = 1
-    outputs = inference_tester.inference(
-        ['video'],
-        condition=[prompt],
-        condition_types=['text'],
-        n_samples=1,
-        image_size=256,
-        ddim_steps=50,
-        num_frames=8,
-        scale=7.5)
+        video = outputs[0][0]
+        # Visual video as gif
+        from PIL import Image
+        frame_one = video[0]
+        path = f"text2video_res{i}.gif"
+        frame_one.save(path, format="GIF", append_images=video[1:],
+                       save_all=True, duration=2000 / len(video), loop=0)
 
-    video = outputs[0][0]
-    # Visual video as gif
-    from PIL import Image
-    frame_one = video[0]
-    path = "./generated_text2video.gif"
-    frame_one.save(path, format="GIF", append_images=video[1:],
-                   save_all=True, duration=2000 / len(video), loop=0)
-
-def text2audio(prompt):
+def text2audio(prompts):
     # Generate audio
-    audio_wave = inference_tester.inference(
-        xtype=['audio'],
-        condition=[prompt],
-        condition_types=['text'],
-        scale=7.5,
-        n_samples=1,
-        ddim_steps=50)[0]
-    torchaudio.save("output_audio.wav", audio_wave, 16000)
+    for i,prompt in enumerate(prompts):
+        audio_wave = inference_tester.inference(
+            xtype=['audio'],
+            condition=[prompt],
+            condition_types=['text'],
+            scale=7.5,
+            n_samples=1,
+            ddim_steps=50)[0]
+        torchaudio.save(f"text2audio_res{i}.wav", audio_wave, 16000)
     # # Play the audio
     # from IPython.display import Audio
     # Audio(audio_wave.squeeze(), rate=16000)

@@ -141,16 +141,9 @@ def evaluate(src_txts, tar_txts, arg):
 if __name__ == '__main__':
     same_seeds(1024)
     arg = params()
-    training_texts = []
-    for text in os.listdir(arg.dataset):
-        if text.endswith(".json"):
-            text_path = os.path.join(arg.dataset,text)
-            with open(text_path,"r",encoding="utf-8")as f:
-                content = json.load(f)
-                content = [val.replace("<unk>","") for val in content]
-            training_texts+=content
-    print(len(training_texts))
-    model_name = "Helsinki-NLP/opus-mt-en-zh"
-    tokenizer = MarianTokenizer.from_pretrained(model_name)
-    tr_model = MarianMTModel.from_pretrained(model_name)
+    with open(os.path.join(arg.log_path, f"t2t_snr{arg.snr}_eval_res.json"), "r", encoding="utf-8") as f:
+        content = json.load(f)
+    raw_text = content["raw_text"]
+    rec_text = content["rec_text"]
+    evaluate(raw_text,rec_text)
 

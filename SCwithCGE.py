@@ -5,7 +5,7 @@ from transformers import BertTokenizer, BertModel
 import random
 import numpy as np
 import json
-from channel_nets import multipath_generator, channel_net, sample_batch, MutualInfoSystem
+from channel_nets import channel_net
 import os
 class params():
     checkpoint_path = "checkpoints"
@@ -15,14 +15,14 @@ class params():
     epoch = 100
     lr = 1e-3
     batchsize = 16
-    snr = 25
+    snr = 15
     weight_delay = 1e-5
     sim_th = 0.6
     emb_dim = 768
     n_heads = 8
     hidden_dim = 1024
-    num_layers = 3
-    use_CGE = False
+    num_layers = 2
+    use_CGE = True
     max_length = 30
 
 def same_seeds(seed):
@@ -44,16 +44,17 @@ class TextSCNet(nn.Module):
         self.encoder = BertModel.from_pretrained('bert-base-uncased')
         self.decoder = nn.TransformerDecoder(nn.TransformerDecoderLayer(emb_dim, n_heads, hidden_dim), num_layers)
         self.fc = nn.Linear(emb_dim, self.encoder.config.vocab_size)
-        self.channel_model = channel_net(in_dims=768, snr=arg.snr,CGE=arg.use_CGE)
-        self.h_I, self.h_Q = multipath_generator(arg.batchsize)
-
+        self.channel_model = channel_net(in_dims=23040, snr=arg.snr,CGE=arg.use_CGE)
     def forward(self, src_input_ids, src_attention_mask, trg_input_ids):
-        encoded = self.encoder(src_input_ids, attention_mask=src_attention_mask).last_hidden_state
-        ch_code, ch_code_with_n, encoded = self.channel_model(encoded, self.h_I, self.h_Q) # transmit on channel
+        s_code = self.encoder(src_input_ids, attention_mask=src_attention_mask).last_hidden_state
+        b_s,w_s,f_s = s_code.shape
+        s_code = s_code.view(b_s,-1)
+        ch_code, ch_code_, s_code_d = self.channel_model(s_code) # transmit on channel
         trg_emb = self.encoder(trg_input_ids)[0]
-        decoded = self.decoder(trg_emb, encoded)
+        s_code_ = s_code_d.view(b_s,w_s,f_s)
+        decoded = self.decoder(trg_emb, s_code_)
         decoded_output = self.fc(decoded)
-        return ch_code, ch_code_with_n, decoded_output
+        return ch_code, ch_code_, s_code, s_code_d, decoded_output
 
 def SC_train(model,tokenizer, training_texts, arg):
     model.to(arg.device)
@@ -99,17 +100,14 @@ def SC_train(model,tokenizer, training_texts, arg):
             src_input_ids = input_ids.clone()
             trg_input_ids = target_ids.clone()  # 切片去掉最后一个token
             src_attention_mask = (src_input_ids != tokenizer.pad_token_id).float().to(arg.device)
-            ch_code, ch_code_with_n, output = model(src_input_ids, src_attention_mask, trg_input_ids)
-            loss_MI = mse(ch_code,ch_code_with_n)# use mse(ch_code,ch_code_with_n) for simplicity
-            # # compute MI loss
-            # batch_joint = sample_batch(1, 'joint', ch_code, ch_code_with_n).to(arg.device)
-            # batch_marginal = sample_batch(1, 'marginal', ch_code, ch_code_with_n).to(arg.device)
-            # t = muInfoNet(batch_joint)
-            # et = torch.exp(muInfoNet(batch_marginal))
-            # loss_MI = torch.mean(t) - torch.log(torch.mean(et))  # or use mse(encoding,encoding_with_noise) for simplicity
+            ch_code, ch_code_, s_code, s_code_, output = model(src_input_ids, src_attention_mask, trg_input_ids)
+
+            loss_ch = mse(s_code,s_code_)
+
             loss_SC = criterion(output.view(-1, model.encoder.config.vocab_size),
-                             target_ids.contiguous().view(-1))  # 切片去掉第一个token
-            loss = loss_MI + loss_SC
+                             target_ids.contiguous().view(-1))
+
+            loss = loss_SC + loss_ch
             loss.backward()
             optimizer.step()
             ## recover the text
@@ -124,11 +122,47 @@ def SC_train(model,tokenizer, training_texts, arg):
             # evaluate
         torch.save(model.state_dict(), weights_path)
 
+@torch.no_grad()
+def data_transmission(input_text):
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    SC_model = TextSCNet(arg.emb_dim, arg.n_heads, arg.hidden_dim, arg.num_layers).to(arg.device)
+    weight = torch.load(f"{arg.checkpoint_path}/TextSC_snr{arg.snr}.pth",map_location="cpu")
+    SC_model.load_state_dict(weight)
+    SC_model.eval()
+    encoded_dict = tokenizer.batch_encode_plus(
+        input_text,  # Input sentence
+        add_special_tokens=True,  # Add special tokens, such as [CLS] and [SEP]
+        max_length=arg.max_length,  # Set the maximum length, truncate if exceeded
+        pad_to_max_length=True,  # Pad to the maximum length
+        return_attention_mask=True,  # Return attention masks
+        return_tensors='pt'  # Return tensor type, here is PyTorch
+    )
+    # Extract input ids, attention masks and token type ids from the dictionary
+    input_ids = encoded_dict['input_ids'].to(arg.device)
+    src_input_ids = input_ids.clone()
 
+    encoded_dict = tokenizer.batch_encode_plus(
+        input_text,  # Input sentence
+        add_special_tokens=True,  # Add special tokens, such as [CLS] and [SEP]
+        max_length=arg.max_length,  # Set the maximum length, truncate if exceeded
+        pad_to_max_length=True,  # Pad to the maximum length
+        return_attention_mask=True,  # Return attention masks
+        return_tensors='pt'  # Return tensor type, here is PyTorch
+    )
+    trg_input_ids = encoded_dict['input_ids'].to(arg.device)
+    src_attention_mask = (src_input_ids != tokenizer.pad_token_id).float().to(arg.device)
+    ch_code, ch_code_, s_code, s_code_, output = SC_model(src_input_ids, src_attention_mask, trg_input_ids)
+    rec_text = []
+    for o in output:
+        predicted_indices = torch.argmax(o.view(-1, SC_model.encoder.config.vocab_size), dim=1).cpu().numpy()
+        predicted_sentence = tokenizer.decode(predicted_indices, skip_special_tokens=True)
+        rec_text.append(predicted_sentence)
+    print(rec_text)
+    return rec_text
 
+arg = params()
 if __name__ == '__main__':
     same_seeds(1024)
-    arg = params()
     train_data = []
     for text in os.listdir(arg.dataset):
         if text.endswith(".json"):
@@ -140,7 +174,7 @@ if __name__ == '__main__':
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     SC_model = TextSCNet(arg.emb_dim, arg.n_heads, arg.hidden_dim, arg.num_layers).to(arg.device)
-    # muInfoNet = MutualInfoSystem()
-    # muInfoNet.load_state_dict(torch.load(os.path.join(arg.checkpoint_path, "MI.pth"), map_location="cpu"))
-    # muInfoNet.to(arg.device)
-    SC_train(SC_model,tokenizer,train_data[:100],arg)
+
+    SC_train(SC_model,tokenizer,train_data,arg)
+
+    data_transmission(train_data[:16])
