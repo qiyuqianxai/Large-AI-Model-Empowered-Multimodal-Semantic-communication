@@ -235,7 +235,6 @@ def channel_estimation(x, y, snr):
 
 
 if __name__ == '__main__':
-
     G = G_Net(args.feature_length)
     D = D_Net(args.feature_length)
     # training

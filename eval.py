@@ -8,7 +8,6 @@ import warnings
 import torchvision.datasets as dset
 from PIL import Image
 warnings.filterwarnings("ignore")
-from base_nets import base_net
 from channel_nets import channel_net
 import time
 import numpy as np
@@ -100,8 +99,8 @@ def evaluate(src_txts, tar_txts, arg):
     from sklearn.metrics.pairwise import cosine_similarity
 
     # Load the BERT model and tokenizer
-    tokenizer = BertTokenizer.from_pretrained('bert-base-chinese')
-    model = BertModel.from_pretrained('bert-base-chinese')
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    model = BertModel.from_pretrained('bert-base-uncased')
     acc = 0
     cos_sims = []
     for src_txt, tar_txt in zip(src_txts,tar_txts):
