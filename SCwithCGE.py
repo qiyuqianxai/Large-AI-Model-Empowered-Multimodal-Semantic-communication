@@ -98,7 +98,7 @@ def SC_train(model,tokenizer, training_texts, arg):
             )
             target_ids = encoded_dict['input_ids'].to(arg.device)
             src_input_ids = input_ids.clone()
-            trg_input_ids = target_ids.clone()  # 切片去掉最后一个token
+            trg_input_ids = target_ids.clone()
             src_attention_mask = (src_input_ids != tokenizer.pad_token_id).float().to(arg.device)
             ch_code, ch_code_, s_code, s_code_, output = model(src_input_ids, src_attention_mask, trg_input_ids)
 
@@ -119,7 +119,6 @@ def SC_train(model,tokenizer, training_texts, arg):
             with open(os.path.join(arg.log_path,f"t2t_snr{arg.snr}_res.json"),"w",encoding="utf-8")as f:
                 f.write(json.dumps({"raw_text":raw_text,"rec_text":rec_text},indent=4,ensure_ascii=False))
             print(f"epoch {epoch}, loss: {loss.item()}")
-            # evaluate
         torch.save(model.state_dict(), weights_path)
 
 @torch.no_grad()

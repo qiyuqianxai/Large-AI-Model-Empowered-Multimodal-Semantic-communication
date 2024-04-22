@@ -63,16 +63,16 @@ def video2text(dataset):
         if os.path.exists(dst_txt_path):
             continue
         video_text = []
-        cv = cv2.VideoCapture(video_path)  # 读入视频文件，命名cv
-        if cv.isOpened():  # 判断是否正常打开
+        cv = cv2.VideoCapture(video_path)
+        if cv.isOpened():
             rval, frame = cv.read()
             i = 0
         else:
             rval = False
             print('open video error!!')
-        while rval:  # 正常打开 开始处理
+        while rval:
             rval, frame = cv.read()
-            if (i % 10 == 0):  # 每隔timeF帧进行存储操作
+            if (i % 10 == 0):
                 try:
                     im = Image.fromarray(frame)
                 except:
@@ -91,14 +91,11 @@ def video2text(dataset):
             video_text += text[0]
         cv2.waitKey(1)
         cv.release()
-        # print(video_text)
         with open(dst_txt_path, "w", encoding="utf-8") as f:
             f.write(json.dumps(video_text, indent=4, ensure_ascii=False))
-        # return video_text
-    return text
+    return video_text
 
 def text2img(prompts):
-    # prompt = "A beautiful oil painting of a birch tree standing in a spring meadow with pink flowers, a distant mountain towers over the field in the distance. Artwork by Alena Aenami"
     for i,prompt in enumerate(prompts):
         images = inference_tester.inference(xtype = ['image'],
                         condition = [prompt],
@@ -112,8 +109,6 @@ def text2img(prompts):
         # plt.show()
 
 def text2video(prompts):
-    # Give A Prompt
-    # prompt = "The boy has a birthday cake decorated with a large candle while celebrating."
     for i,prompt in enumerate(prompts):
         outputs = inference_tester.inference(
             ['video'],
@@ -149,13 +144,13 @@ def text2audio(prompts):
     # Audio(audio_wave.squeeze(), rate=16000)
 
 
+model_load_paths = ['CoDi_encoders.pth', 'CoDi_text_diffuser.pth', 'CoDi_audio_diffuser_m.pth',
+                        'CoDi_video_diffuser_8frames.pth']
+inference_tester = model_module(data_dir='./', pth=model_load_paths)
+inference_tester = inference_tester
+inference_tester = inference_tester.eval()
 
 if __name__ == '__main__':
-    model_load_paths = ['CoDi_encoders.pth', 'CoDi_text_diffuser.pth', 'CoDi_audio_diffuser_m.pth',
-                        'CoDi_video_diffuser_8frames.pth']
-    inference_tester = model_module(data_dir='./', pth=model_load_paths)
-    inference_tester = inference_tester
-    inference_tester = inference_tester.eval()
     img_dataset = r"E:\pengyubo\datasets\DeepJSCC_res"
     img2text(img_dataset)
     audio_dataset = r"E:\pengyubo\datasets\Fairseq_res"

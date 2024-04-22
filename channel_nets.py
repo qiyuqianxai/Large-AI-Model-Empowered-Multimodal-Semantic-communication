@@ -54,7 +54,7 @@ class channel_net(nn.Module):
         ch_code = self.enc_fc(x)
         ch_code_with_n = fading_channel(ch_code,self.snr,self.use_CGE)
         x = self.dec_fc(ch_code_with_n)
-        return ch_code,ch_code_with_n,x
+        return ch_code,ch_code_with_n, x
 
 from torchsummary import summary
 
