@@ -1,3 +1,5 @@
+import copy
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,7 +14,7 @@ class params():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dataset = r"E:\datasets\VOC2012_img2text"
     log_path = "logs"
-    epoch = 100
+    epoch = 20
     lr = 1e-3
     batchsize = 16
     snr = 15
@@ -45,12 +47,13 @@ class TextSCNet(nn.Module):
         self.decoder = nn.TransformerDecoder(nn.TransformerDecoderLayer(emb_dim, n_heads, hidden_dim), num_layers)
         self.fc = nn.Linear(emb_dim, self.encoder.config.vocab_size)
         self.channel_model = channel_net(in_dims=23040, snr=arg.snr,CGE=arg.use_CGE)
+        self.embedding = nn.Embedding(self.encoder.config.vocab_size, emb_dim)
     def forward(self, src_input_ids, src_attention_mask, trg_input_ids):
         s_code = self.encoder(src_input_ids, attention_mask=src_attention_mask).last_hidden_state
         b_s,w_s,f_s = s_code.shape
         s_code = s_code.view(b_s,-1)
         ch_code, ch_code_, s_code_d = self.channel_model(s_code) # transmit on channel
-        trg_emb = self.encoder(trg_input_ids)[0]
+        trg_emb = self.embedding(trg_input_ids)
         s_code_ = s_code_d.view(b_s,w_s,f_s)
         decoded = self.decoder(trg_emb, s_code_)
         decoded_output = self.fc(decoded)
@@ -76,7 +79,6 @@ def SC_train(model,tokenizer, training_texts, arg):
             raw_text += b_text
             optimizer.zero_grad()
             input_text = b_text
-            target_text = b_text
             encoded_dict = tokenizer.batch_encode_plus(
                 input_text,  # Input sentence
                 add_special_tokens=True,  # Add special tokens, such as [CLS] and [SEP]
@@ -85,18 +87,18 @@ def SC_train(model,tokenizer, training_texts, arg):
                 return_attention_mask=True,  # Return attention masks
                 return_tensors='pt'  # Return tensor type, here is PyTorch
             )
-
             # Extract input ids, attention masks and token type ids from the dictionary
             input_ids = encoded_dict['input_ids'].to(arg.device)
-            encoded_dict = tokenizer.batch_encode_plus(
-                target_text,  # Input sentence
+            encoded_dict_d = tokenizer.batch_encode_plus(
+                input_text,  # Input sentence
                 add_special_tokens=True,  # Add special tokens, such as [CLS] and [SEP]
                 max_length=arg.max_length,  # Set the maximum length, truncate if exceeded
                 pad_to_max_length=True,  # Pad to the maximum length
                 return_attention_mask=True,  # Return attention masks
                 return_tensors='pt'  # Return tensor type, here is PyTorch
             )
-            target_ids = encoded_dict['input_ids'].to(arg.device)
+            target_ids = encoded_dict_d['input_ids'].to(arg.device)
+
             src_input_ids = input_ids.clone()
             trg_input_ids = target_ids.clone()
             src_attention_mask = (src_input_ids != tokenizer.pad_token_id).float().to(arg.device)
@@ -139,8 +141,8 @@ def data_transmission(input_text):
     # Extract input ids, attention masks and token type ids from the dictionary
     input_ids = encoded_dict['input_ids'].to(arg.device)
     src_input_ids = input_ids.clone()
-
-    encoded_dict = tokenizer.batch_encode_plus(
+    src_attention_mask = (src_input_ids != tokenizer.pad_token_id).float().to(arg.device)
+    encoded_dict_d = tokenizer.batch_encode_plus(
         input_text,  # Input sentence
         add_special_tokens=True,  # Add special tokens, such as [CLS] and [SEP]
         max_length=arg.max_length,  # Set the maximum length, truncate if exceeded
@@ -148,8 +150,7 @@ def data_transmission(input_text):
         return_attention_mask=True,  # Return attention masks
         return_tensors='pt'  # Return tensor type, here is PyTorch
     )
-    trg_input_ids = encoded_dict['input_ids'].to(arg.device)
-    src_attention_mask = (src_input_ids != tokenizer.pad_token_id).float().to(arg.device)
+    trg_input_ids = encoded_dict_d['input_ids'].to(arg.device)
     ch_code, ch_code_, s_code, s_code_, output = SC_model(src_input_ids, src_attention_mask, trg_input_ids)
     rec_text = []
     for o in output:
@@ -173,7 +174,4 @@ if __name__ == '__main__':
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     SC_model = TextSCNet(arg.emb_dim, arg.n_heads, arg.hidden_dim, arg.num_layers).to(arg.device)
-
     SC_train(SC_model,tokenizer,train_data,arg)
-
-    data_transmission(train_data[:16])
