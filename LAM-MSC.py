@@ -5,29 +5,30 @@ from transformers import BertTokenizer, BertModel
 import random
 import numpy as np
 import json
-from channel_nets import channel_net, sample_batch, MutualInfoSystem
+from channel_nets import channel_net
 import os
 import SCwithCGE
 import MMA
 import LKB
 
 class params():
-    checkpoint_path = "checkpoints"
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = r"E:\datasets\VOC2012_img2text"
-    log_path = "logs"
-    epoch = 100
-    lr = 1e-3
-    batchsize = 16
-    snr = 15
-    weight_delay = 1e-5
-    sim_th = 0.6
-    emb_dim = 768
-    n_heads = 8
-    hidden_dim = 1024
-    num_layers = 2
-    use_CGE = False
-    max_length = 30
+    # Configuration parameters for training and testing
+    checkpoint_path = "checkpoints"  # Path to save model checkpoints
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # Use GPU if available
+    dataset = r"E:\datasets\VOC2012_img2text"  # Path to dataset
+    log_path = "logs"  # Path to save logs
+    epoch = 100  # Number of training epochs
+    lr = 1e-3  # Learning rate
+    batchsize = 16  # Batch size for training
+    snr = 15  # Signal-to-noise ratio
+    weight_delay = 1e-5  # Weight decay for optimizer
+    sim_th = 0.6  # Similarity threshold for evaluation
+    emb_dim = 768  # Embedding dimension
+    n_heads = 8  # Number of attention heads in the transformer
+    hidden_dim = 1024  # Hidden dimension in the transformer
+    num_layers = 2  # Number of layers in the transformer
+    use_CGE = False  # Whether to use channel gain estimation (CGE)
+    max_length = 30  # Maximum sequence length for tokenization
 
 def same_seeds(seed):
     # Python built-in random module

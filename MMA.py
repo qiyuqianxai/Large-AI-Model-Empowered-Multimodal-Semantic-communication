@@ -7,6 +7,7 @@ import torchaudio
 from IPython.display import Audio
 import cv2
 
+# Image to Text using CoDi
 def img2text(dataset):
     for img in os.listdir(dataset):
         if not img.endswith(".jpg"):
@@ -28,7 +29,7 @@ def img2text(dataset):
             f.write(json.dumps(text,indent=4,ensure_ascii=False))
     return text
 
-
+# Audio to Text using CoDi
 def audio2text(dataset):
     for audio in os.listdir(dataset):
         if not audio.endswith(".flac"):
@@ -54,6 +55,7 @@ def audio2text(dataset):
             f.write(json.dumps(text, indent=4, ensure_ascii=False))
     return text
 
+# Video to Text using CoDi
 def video2text(dataset):
     for video in os.listdir(dataset):
         if not video.endswith(".avi"):
@@ -95,6 +97,7 @@ def video2text(dataset):
             f.write(json.dumps(video_text, indent=4, ensure_ascii=False))
     return video_text
 
+# Text to image using CoDi
 def text2img(prompts):
     for i,prompt in enumerate(prompts):
         images = inference_tester.inference(xtype = ['image'],
@@ -108,6 +111,7 @@ def text2img(prompts):
         plt.savefig(f"text2img_res{i}.jpg")
         # plt.show()
 
+# Text to video using CoDi
 def text2video(prompts):
     for i,prompt in enumerate(prompts):
         outputs = inference_tester.inference(
@@ -128,6 +132,7 @@ def text2video(prompts):
         frame_one.save(path, format="GIF", append_images=video[1:],
                        save_all=True, duration=2000 / len(video), loop=0)
 
+# Text to audio using CoDi
 def text2audio(prompts):
     # Generate audio
     for i,prompt in enumerate(prompts):
@@ -143,9 +148,10 @@ def text2audio(prompts):
     # from IPython.display import Audio
     # Audio(audio_wave.squeeze(), rate=16000)
 
-
+# model weights path
 model_load_paths = ['CoDi_encoders.pth', 'CoDi_text_diffuser.pth', 'CoDi_audio_diffuser_m.pth',
                         'CoDi_video_diffuser_8frames.pth']
+# load CoDi model
 inference_tester = model_module(data_dir='./', pth=model_load_paths)
 inference_tester = inference_tester
 inference_tester = inference_tester.eval()
